@@ -12,7 +12,41 @@ Privacy-preserving data redaction powered by **Microsoft Presidio**. Detects and
 - **Configurable** — allowlist/denylist, confidence threshold, entity filtering
 - **Graceful fallback** — runs without Presidio installed (pass-through mode with clear warning)
 
-## Installation
+## Install in Hermes Agent
+
+This skill lives at **[github.com/fanyadan/pii-sanitizer](https://github.com/fanyadan/pii-sanitizer)**.
+
+### From GitHub (hub install)
+
+```bash
+hermes skills install https://raw.githubusercontent.com/fanyadan/pii-sanitizer/master/SKILL.md
+```
+
+This downloads the skill into `~/.hermes/skills/pii-sanitizer/` and Hermes picks it up automatically.
+
+### Manual (clone yourself)
+
+```bash
+git clone git@github.com:fanyadan/pii-sanitizer.git ~/.hermes/skills/pii-sanitizer
+
+# or symlink:
+git clone git@github.com:fanyadan/pii-sanitizer.git ~/workspace/pii-sanitizer
+ln -s ~/workspace/pii-sanitizer ~/.hermes/skills/pii-sanitizer
+```
+
+Then reload:
+
+```bash
+# In a Hermes session:
+/reload-skills
+
+# Or start fresh with the skill preloaded:
+hermes -s pii-sanitizer
+```
+
+Once loaded, Hermes will call `sanitize_text` / `sanitize_file` whenever you ask it to redact PII.
+
+## PyPI / pip Installation
 
 ```bash
 # Core (required)
