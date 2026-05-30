@@ -1,40 +1,42 @@
 # pii-sanitizer
 
-Privacy-preserving data redaction powered by **Microsoft Presidio**. Detects and removes personally identifiable information (PII) from text, code, system logs, and images (via OCR) — with first-class support for Chinese entities.
+High-accuracy PII redaction powered by **local LLM (gemma4:26b)** with comprehensive coverage across all major global sectors and regulatory frameworks.
 
 ## Features
 
-- **Text, code, and log sanitization** — emails, phone numbers, IPs, IDs, dates
-- **Image OCR** — extract text from screenshots and redact PII in one pass
-- **Chinese-first** — 手机号, 身份证, 银行卡号, 姓名 built in
-- **Security-oriented** — AWS access keys, API secrets, JWT tokens, credential assignments
-- **Flexible output** — replace with `<ENTITY_TYPE>` markers, SHA256 hashes, or write sanitized files
-- **Configurable** — allowlist/denylist, confidence threshold, entity filtering
-- **Graceful fallback** — runs without Presidio installed (pass-through mode with clear warning)
+- **LLM-powered detection** — Uses contextual understanding instead of rigid rules
+- **Global sector coverage** — Healthcare, Finance, Employment, Legal, Education, Government, Retail, Technology, and more
+- **Re-identification risk awareness** — Redacts data that can identify individuals when combined
+- **Progress output** — Shows status during each pass (no silent execution)
+- **Retry logic** — Automatic retry on malformed output
+- **Local execution** — Runs 100% locally via Ollama (no data leaves your machine)
+- **Flexible output** — Returns structured JSON with redacted text and detected entities
+
+## Version
+
+**Current: v4.0** — Comprehensive global system prompt covering 10 major sensitive data categories and 14+ industry sectors.
 
 ## Install in Hermes Agent
 
-This skill lives at **[github.com/fanyadan/pii-sanitizer](https://github.com/fanyadan/pii-sanitizer)**.
-
-### From GitHub (hub install)
+### Via Hermes Command (Recommended)
 
 ```bash
 hermes skills install https://raw.githubusercontent.com/fanyadan/pii-sanitizer/master/SKILL.md
 ```
 
-This downloads the skill into `~/.hermes/skills/pii-sanitizer/` and Hermes picks it up automatically.
+This will download the skill into `~/.hermes/skills/pii-sanitizer/` and make it available automatically.
 
-### Manual (clone yourself)
+### Manual Installation
 
 ```bash
-git clone git@github.com:fanyadan/pii-sanitizer.git ~/.hermes/skills/pii-sanitizer
+# Clone into Hermes skills directory
+git clone <your-repo-url> ~/.hermes/skills/pii-sanitizer
 
-# or symlink:
-git clone git@github.com:fanyadan/pii-sanitizer.git ~/workspace/pii-sanitizer
+# Or symlink from your workspace
 ln -s ~/workspace/pii-sanitizer ~/.hermes/skills/pii-sanitizer
 ```
 
-Then reload:
+### Reload Skills
 
 ```bash
 # In a Hermes session:
@@ -44,51 +46,25 @@ Then reload:
 hermes -s pii-sanitizer
 ```
 
-Once loaded, Hermes will call `sanitize_text` / `sanitize_file` whenever you ask it to redact PII.
-
-## PyPI / pip Installation
-
-```bash
-# Core (required)
-pip install presidio-analyzer presidio-anonymizer
-
-# OCR support (optional — for image redaction)
-pip install pytesseract pillow
-brew install tesseract tesseract-lang   # macOS
-# or: apt install tesseract-ocr tesseract-ocr-chi-sim  # Linux
-
-# spaCy language models (recommended for NER)
-python -m spacy download en_core_web_sm
-
-# Or use the bundled requirements file:
-pip install -r requirements.txt
-```
+Once loaded, you can call `sanitize_text()` and `sanitize_file()` directly.
 
 ## Quick Start
 
 ```python
 from pii_sanitizer import sanitize_text, sanitize_file
 
-# Text
-result = sanitize_text("联系我：13800138000，邮箱 test@company.com，身份证 110101199001011234")
+# Basic usage
+result = sanitize_text("Patient Elena Rodriguez, SSN 612-34-7890, Policy #MED-2026-88421")
 print(result["redacted_text"])
-# => 联系我：<PHONE_NUMBER>，邮箱 <EMAIL_ADDRESS>，身份证 <ID_CARD>
+# => Patient [NAME], SSN [SSN], Policy [POLICY_NUMBER]
 
-print(result["stats"])
-# => {'total_entities': 3, 'by_type': {'PHONE_NUMBER': 2, 'EMAIL_ADDRESS': 1, ...}}
+# High-accuracy mode (recommended)
+result = sanitize_text(
+    text,
+    max_retries=3
+)
 
-# Image OCR
-result = sanitize_text("Extract and sanitize", image_path="screenshot.png")
-
-# File I/O
-result = sanitize_file("server.log", output_path="server.clean.log")
-```
-
-## CLI
-
-```bash
-python -m pii_sanitizer --input data.txt --output sanitized.txt --json
-python -m pii_sanitizer --input "Phone: 13800138000" --json --hash
+# File processing
 ```
 
 ## Configuration
@@ -97,73 +73,38 @@ python -m pii_sanitizer --input "Phone: 13800138000" --json --hash
 from pii_sanitizer import PIISanitizer
 
 sanitizer = PIISanitizer(
-    language="en",              # spaCy language model
-    confidence_threshold=0.6,   # min score to redact (0.0–1.0)
-    use_hash=True,              # SHA256 instead of <ENTITY_TYPE> markers
-    allowlist=["safe@keep.com"], # never redact these
-    denylist=["force-hide-me"],  # always redact these if detected
+    model="gemma4:26b",      # Local Ollama model
+    max_retries=3            # Retries on JSON parsing failure
 )
 ```
 
-## Detected Entity Types
-
-| Category | Entity Types |
-|----------|-------------|
-| Standard | `EMAIL_ADDRESS`, `PHONE_NUMBER`, `IP_ADDRESS`, `DATE_TIME`, `PERSON`, `URL`, `NRP` |
-| Chinese | `ID_CARD` (身份证), `CREDIT_CARD` (银行卡), Chinese `PHONE_NUMBER` (手机号) |
-| Security | `AWS_ACCESS_KEY`, `SECRET_KEY`, `CREDENTIAL` |
-
-## Output Schema
-
-Every call returns:
+## Output Structure
 
 ```json
 {
-  "original_length": 123,
-  "redacted_length": 98,
+  "original_length": 245,
+  "redacted_length": 198,
   "entities_found": [
-    {"entity_type": "EMAIL_ADDRESS", "text": "test@example.com", "start": 12, "end": 28, "score": 1.0}
+    {"type": "NAME", "original_value": "Elena Rodriguez"},
+    {"type": "SSN", "original_value": "612-34-7890"},
+    {"type": "POLICY_NUMBER", "original_value": "#MED-2026-88421"}
   ],
-  "redacted_text": "Email: <EMAIL_ADDRESS> ...",
-  "stats": {"total_entities": 3, "by_type": {"EMAIL_ADDRESS": 1, "PHONE_NUMBER": 2}},
-  "output_file": null
+  "redacted_text": "Patient [NAME] (SSN: [SSN]) ...",
+  "stats": {"total_entities": 3},
+  "output_file": "/path/to/sanitized.txt"
 }
 ```
-
-## Verification
-
-Two test suites included — all self-contained, no external files needed:
-
-```bash
-# Quick smoke test (6 tests)
-python tests/verify.py
-
-# Full mixed-mode test (20 tests: text, image, file I/O, edge cases)
-python tests/test_mixed_full.py
-```
-
-Expected output: `✅ ALL CHECKS PASSED — skill works 100% as expected`
-
-## How It Works
-
-```
-Input (text / image) → Presidio Analyzer → Entity detection
-                                        → Custom recognizers (Chinese, AWS, secrets)
-                                        → Allowlist/denylist filtering
-                                        → Confidence threshold
-                     → Presidio Anonymizer → Replace / hash
-                     → Structured JSON output
-```
-
-When `image_path` is provided, the image is OCR'd with Tesseract and the extracted text replaces the input text before Presidio processing.
 
 ## Requirements
 
 - Python ≥ 3.10
-- **Presidio** ≥ 2.2 (analyzer + anonymizer)
-- **spaCy** ≥ 3.7 (NER)
-- **Tesseract** + **pytesseract** (image OCR, optional)
-- **Pillow** ≥ 10.0 (image generation for tests, optional)
+- `ollama` Python package
+- Local model `gemma4:26b` available via Ollama
+
+```bash
+pip install ollama
+ollama pull gemma4:26b
+```
 
 ## License
 
